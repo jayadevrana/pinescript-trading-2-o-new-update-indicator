@@ -1,0 +1,91 @@
+//@version=5
+indicator("Trading 2.O (New Update)", overlay=true)
+
+// Input for bar color customization
+enableBarColor = input.bool(true, title="Change Bar Color")
+barColorUp = input.color(#00fc08, title="Bar Color Uptrend")
+barColorDown = input.color(#FF0000FF, title="Bar Color Downtrend")
+barColorSideways = input.color(#00bcd4, title="Bar Color Sideways")
+
+// Input for toggling stop loss and target lines
+showStopLossTarget = input.bool(true, title="Show Stop Loss and Target Lines")
+
+// Trading 2.O Strategy
+ema20 = ta.ema(close, 20)
+ema25 = ta.ema(close, 25)
+ema30 = ta.ema(close, 30)
+ema35 = ta.ema(close, 35)
+ema40 = ta.ema(close, 40)
+ema45 = ta.ema(close, 45)
+ema50 = ta.ema(close, 50)
+ema55 = ta.ema(close, 55)
+
+// Determine trend conditions
+uptrend = ema20 > ema25 and ema25 > ema30 and ema30 > ema35 and ema35 > ema40 and ema40 > ema45 and ema45 > ema50 and ema50 > ema55
+downtrend = ema20 < ema25 and ema25 < ema30 and ema30 < ema35 and ema35 < ema40 and ema40 < ema45 and ema45 < ema50 and ema50 < ema55
+sideways = not uptrend and not downtrend
+
+// Determine Hull color based on EMA conditions
+hullColor = uptrend ? color.new(barColorUp, 50) : (downtrend ? color.new(barColorDown, 50) : color.new(barColorSideways, 50))
+
+// Plot EMAs with transparency set to 100 to make them invisible
+plot_ema20 = plot(ema20, title="20 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema25 = plot(ema25, title="25 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema30 = plot(ema30, title="30 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema35 = plot(ema35, title="35 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema40 = plot(ema40, title="40 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema45 = plot(ema45, title="45 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema50 = plot(ema50, title="50 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+plot_ema55 = plot(ema55, title="55 EMA", color=color.new(color.red, 100), linewidth=1, editable=false)
+
+// Fill between the EMAs
+fill(plot_ema20, plot_ema55, title="Hull", color=hullColor, transp=50, editable=false)
+
+// Initialize variables for tracking signals
+var float entryPrice = na
+var float stopLoss = na
+var float target = na
+var bool inPosition = false
+var bool isBuyTrade = false
+
+// Calculate buy and sell conditions
+buySignal = ta.crossover(close, ema20) and close > ema20 and uptrend and not inPosition
+sellSignal = ta.crossunder(close, ema20) and close < ema20 and downtrend and not inPosition
+
+// Handle buy signals
+if (buySignal)
+    entryPrice := close
+    stopLoss := math.min(low, ema55)  // Set stop loss to the lower of the low of the buy signal candle or the 55 EMA
+    target := entryPrice + (entryPrice - stopLoss) * 1.5
+    inPosition := true
+    isBuyTrade := true
+
+// Handle sell signals
+if (sellSignal)
+    entryPrice := close
+    stopLoss := math.max(high, ema55)  // Set stop loss to the higher of the high of the sell signal candle or the 55 EMA
+    target := entryPrice - (stopLoss - entryPrice) * 1.5
+    inPosition := true
+    isBuyTrade := false
+
+// Exit trade when target or stop loss is hit
+if (inPosition)
+    if (isBuyTrade and (close >= target or close <= stopLoss))
+        inPosition := false
+    if (not isBuyTrade and (close <= target or close >= stopLoss))
+        inPosition := false
+
+// Plot buy and sell signals
+plotshape(series=buySignal, location=location.belowbar, color=color.green, style=shape.labelup,title = "Buy", text="BUY", textcolor=color.white)
+plotshape(series=sellSignal, location=location.abovebar, color=color.red, style=shape.labeldown,title = "Sell", text="SELL", textcolor=color.white)
+
+// Plot stop loss and target levels as dots
+plot(series=showStopLossTarget and inPosition and isBuyTrade ? stopLoss : na, title="Stop Loss", style=plot.style_linebr, color=#FF0000FF, linewidth=1, editable=false)
+plot(series=showStopLossTarget and inPosition and isBuyTrade ? target : na, title="Target", style=plot.style_linebr, color=#00FF00FF, linewidth=1, editable=false)
+plot(series=showStopLossTarget and inPosition and not isBuyTrade ? stopLoss : na, title="Stop Loss", style=plot.style_linebr, color=#FF0000FF, linewidth=1, editable=false)
+plot(series=showStopLossTarget and inPosition and not isBuyTrade ? target : na, title="Target", style=plot.style_linebr, color=#00FF00FF, linewidth=1, editable=false)
+
+// Change candle colors based on the trend if enabled
+barcolor(enableBarColor ? (uptrend ? barColorUp : (downtrend ? barColorDown : barColorSideways)) : na)
+
+plotshape(inPosition == false and inPosition[1] == true, color=color.new(#d641ff, 0), text='🚀', textcolor=color.new(#d641ff, 0), location=location.abovebar,size=size.tiny)
